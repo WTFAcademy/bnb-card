@@ -15,7 +15,7 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ templateSrc, onExport }) => {
     canvasRef,
     containerRef,
     uploadedImage,
-    professionText,
+    professionTexts,
     nameText,
     handleDragStart,
     handleRotateStart,
@@ -33,6 +33,8 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ templateSrc, onExport }) => {
     handleProfessionFontSizeDecrease,
     handleNameFontSizeIncrease,
     handleNameFontSizeDecrease,
+    addProfessionText,
+    removeProfessionText,
     exportImage,
     getControlPoints,
     getProfessionControlPoints,
@@ -139,55 +141,58 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ templateSrc, onExport }) => {
                   <div className="absolute inset-0 border-2 border-dashed border-white rounded-md"></div>
                 </div>
 
-                {/* Profession text control frame */}
-                {professionText.text && (
-                  <div 
-                    className="absolute origin-center pointer-events-none"
-                    style={getProfessionControlPoints() as CSSProperties}
-                  >
-                    <div className="relative px-8 py-2 flex items-center justify-center">
-                      {/* Profession text placeholder - draggable */}
-                      <div 
-                        className="text-transparent pointer-events-auto cursor-move" 
-                        style={{fontFamily: '楷体, KaiTi, 宋体, SimSun', fontSize: `${professionText.fontSize}px`}}
-                        onMouseDown={handleProfessionDragStart}
-                        onTouchStart={handleProfessionDragStart}
-                      >
-                        {professionText.text}
-                      </div>
-                      
-                      {/* Profession rotation control */}
-                      <div 
-                        className="absolute -top-6 left-1/2 transform -translate-x-1/2 flex gap-2"
-                      >
+                {/* Profession text control frames - 遍历所有职业文本 */}
+                {professionTexts.map((professionText, index) => (
+                  professionText.text && (
+                    <div 
+                      key={`profession-${index}`}
+                      className="absolute origin-center pointer-events-none"
+                      style={getProfessionControlPoints(index) as CSSProperties}
+                    >
+                      <div className="relative px-8 py-2 flex items-center justify-center">
+                        {/* Profession text placeholder - draggable */}
                         <div 
-                          className="w-6 h-6 bg-blue-500 rounded-full border-2 border-white flex items-center justify-center cursor-grab shadow-md pointer-events-auto z-20"
-                          onMouseDown={handleProfessionRotateStart}
-                          onTouchStart={handleProfessionRotateStart}
+                          className="text-transparent pointer-events-auto cursor-move" 
+                          style={{fontFamily: '楷体, KaiTi, 宋体, SimSun', fontSize: `${professionText.fontSize}px`}}
+                          onMouseDown={(e) => handleProfessionDragStart(e, index)}
+                          onTouchStart={(e) => handleProfessionDragStart(e, index)}
                         >
-                          <RotateCw className="w-3 h-3 text-white" />
+                          {professionText.text}
                         </div>
                         
-                        {/* Profession text size controls */}
+                        {/* Profession rotation control */}
                         <div 
-                          className="w-6 h-6 bg-blue-500 rounded-full border-2 border-white flex items-center justify-center cursor-pointer shadow-md pointer-events-auto z-20"
-                          onClick={handleProfessionFontSizeIncrease}
+                          className="absolute -top-6 left-1/2 transform -translate-x-1/2 flex gap-2"
                         >
-                          <Plus className="w-3 h-3 text-white" />
+                          <div 
+                            className="w-6 h-6 bg-blue-500 rounded-full border-2 border-white flex items-center justify-center cursor-grab shadow-md pointer-events-auto z-20"
+                            onMouseDown={(e) => handleProfessionRotateStart(e, index)}
+                            onTouchStart={(e) => handleProfessionRotateStart(e, index)}
+                          >
+                            <RotateCw className="w-3 h-3 text-white" />
+                          </div>
+                          
+                          {/* Profession text size controls */}
+                          <div 
+                            className="w-6 h-6 bg-blue-500 rounded-full border-2 border-white flex items-center justify-center cursor-pointer shadow-md pointer-events-auto z-20"
+                            onClick={() => handleProfessionFontSizeIncrease(index)}
+                          >
+                            <Plus className="w-3 h-3 text-white" />
+                          </div>
+                          <div 
+                            className="w-6 h-6 bg-blue-500 rounded-full border-2 border-white flex items-center justify-center cursor-pointer shadow-md pointer-events-auto z-20"
+                            onClick={() => handleProfessionFontSizeDecrease(index)}
+                          >
+                            <Minus className="w-3 h-3 text-white" />
+                          </div>
                         </div>
-                        <div 
-                          className="w-6 h-6 bg-blue-500 rounded-full border-2 border-white flex items-center justify-center cursor-pointer shadow-md pointer-events-auto z-20"
-                          onClick={handleProfessionFontSizeDecrease}
-                        >
-                          <Minus className="w-3 h-3 text-white" />
-                        </div>
+                        
+                        {/* Control frame border */}
+                        <div className="absolute inset-0 border-2 border-dashed border-blue-400 rounded-md"></div>
                       </div>
-                      
-                      {/* Control frame border */}
-                      <div className="absolute inset-0 border-2 border-dashed border-blue-400 rounded-md"></div>
                     </div>
-                  </div>
-                )}
+                  )
+                ))}
 
                 {/* Name text control frame */}
                 {nameText.text && (
@@ -296,32 +301,41 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ templateSrc, onExport }) => {
               <div>
                 <p className="text-xs text-black/60 mb-2 font-medium">Add profession and name</p>
                 <div className="flex flex-col gap-3">
-                  <div className="flex items-center gap-2">
-                    <div className="bg-blue-100 p-1.5 rounded-lg shadow-sm">
-                      <Briefcase className="w-3.5 h-3.5 text-blue-600" />
-                    </div>
-                    <input
-                      type="text"
-                      value={professionText.text}
-                      onChange={(e) => handleProfessionChange(e.target.value)}
-                      placeholder="Enter your profession"
-                      className="flex-1 border border-blue-200 rounded-lg px-3 py-2 text-sm font-kaiti focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent shadow-sm"
-                      style={{fontFamily: '楷体, KaiTi, 宋体, SimSun'}}
-                    />
-                    <div className="flex gap-1">
-                      <button 
-                        onClick={handleProfessionFontSizeIncrease}
-                        className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center hover:bg-blue-200 transition-colors"
-                      >
-                        <Plus className="w-4 h-4 text-blue-600" />
-                      </button>
-                      <button 
-                        onClick={handleProfessionFontSizeDecrease}
-                        className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center hover:bg-blue-200 transition-colors"
-                      >
-                        <Minus className="w-4 h-4 text-blue-600" />
-                      </button>
-                    </div>
+                  {/* 职业文本区域 - 使用数组渲染多个输入框 */}
+                  <div className="flex flex-col gap-3">
+                    {professionTexts.map((professionText, index) => (
+                      <div key={`profession-input-${index}`} className="flex items-center gap-2">
+                        <div className="bg-blue-100 p-1.5 rounded-lg shadow-sm">
+                          <Briefcase className="w-3.5 h-3.5 text-blue-600" />
+                        </div>
+                        <input
+                          type="text"
+                          value={professionText.text}
+                          onChange={(e) => handleProfessionChange(e.target.value, index)}
+                          placeholder={`Enter profession ${index + 1}`}
+                          className="flex-1 border border-blue-200 rounded-lg px-3 py-2 text-sm font-kaiti focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent shadow-sm"
+                          style={{fontFamily: '楷体, KaiTi, 宋体, SimSun'}}
+                        />
+                        {/* 删除按钮 */}
+                        {professionTexts.length > 1 && (
+                          <button 
+                            onClick={() => removeProfessionText(index)}
+                            className="w-7 h-7 rounded-lg bg-red-100 flex items-center justify-center hover:bg-red-200 transition-colors"
+                          >
+                            <Minus className="w-4 h-4 text-red-600" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    
+                    {/* 添加职业按钮 */}
+                    <button 
+                      onClick={addProfessionText}
+                      className="flex items-center justify-center gap-2 border border-blue-200 rounded-lg px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Add Another Profession</span>
+                    </button>
                   </div>
                   
                   <div className="flex items-center gap-2">
@@ -336,20 +350,6 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ templateSrc, onExport }) => {
                       className="flex-1 border border-red-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-transparent shadow-sm"
                       style={{fontFamily: '楷体, KaiTi, 宋体, SimSun'}}
                     />
-                    <div className="flex gap-1">
-                      <button 
-                        onClick={handleNameFontSizeIncrease}
-                        className="w-7 h-7 rounded-lg bg-red-100 flex items-center justify-center hover:bg-red-200 transition-colors"
-                      >
-                        <Plus className="w-4 h-4 text-red-600" />
-                      </button>
-                      <button 
-                        onClick={handleNameFontSizeDecrease}
-                        className="w-7 h-7 rounded-lg bg-red-100 flex items-center justify-center hover:bg-red-200 transition-colors"
-                      >
-                        <Minus className="w-4 h-4 text-red-600" />
-                      </button>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -409,6 +409,7 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ templateSrc, onExport }) => {
                   <li>Use corner controls to resize photo</li>
                   <li>Use top rotation control to adjust angle</li>
                   <li>Enter your profession and name</li>
+                  <li>Add multiple profession entries if needed</li>
                   <li>Click and drag text to adjust position</li>
                   <li>Use text controls to adjust rotation angle and size</li>
                   <li>Profession text appears in the center by default</li>

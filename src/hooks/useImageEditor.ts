@@ -24,6 +24,7 @@ interface StartPoint {
   rotation: number;
   positionX?: number;
   positionY?: number;
+  textIndex?: number;  // 新增，用于跟踪当前操作的文本索引
 }
 
 export interface ImageEditorHook {
@@ -32,35 +33,39 @@ export interface ImageEditorHook {
   containerRef: React.RefObject<HTMLDivElement>;
   uploadedImage: string | null;
   transform: ImageTransform;
-  professionText: TextTransform;
+  professionTexts: TextTransform[];  // 改为数组
   nameText: TextTransform;
   isDragging: boolean;
   isRotating: boolean;
   isResizing: boolean;
   isProfessionRotating: boolean;
   isProfessionDragging: boolean;
+  isProfessionRotatingIndex: number;  // 新增，追踪当前旋转的文本索引
+  isProfessionDraggingIndex: number;  // 新增，追踪当前拖动的文本索引
   isNameRotating: boolean;
   isNameDragging: boolean;
   startPoint: StartPoint;
   handleDragStart: (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => void;
   handleRotateStart: (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => void;
-  handleProfessionDragStart: (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => void;
-  handleProfessionRotateStart: (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => void;
+  handleProfessionDragStart: (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>, index: number) => void;
+  handleProfessionRotateStart: (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>, index: number) => void;
   handleNameDragStart: (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => void;
   handleNameRotateStart: (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => void;
   handleResizeStart: (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => void;
   handleMouseMove: (e: React.MouseEvent<HTMLDivElement>) => void;
   handleTouchMove: (e: React.TouchEvent<HTMLDivElement>) => void;
   handleImageUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
-  handleProfessionChange: (text: string) => void;
+  handleProfessionChange: (text: string, index: number) => void;
   handleNameChange: (text: string) => void;
-  handleProfessionFontSizeIncrease: () => void;
-  handleProfessionFontSizeDecrease: () => void;
+  handleProfessionFontSizeIncrease: (index: number) => void;
+  handleProfessionFontSizeDecrease: (index: number) => void;
   handleNameFontSizeIncrease: () => void;
   handleNameFontSizeDecrease: () => void;
+  addProfessionText: () => void;  // 新增添加职业文本的方法
+  removeProfessionText: (index: number) => void;  // 新增删除职业文本的方法
   exportImage: () => void;
   getControlPoints: () => {width?: string, height?: string, transform?: string};
-  getProfessionControlPoints: () => {transform?: string};
+  getProfessionControlPoints: (index: number) => {transform?: string};
   getNameControlPoints: () => {transform?: string};
   drawImageOnCanvas: () => void;
   handleFlip: () => void;
@@ -75,13 +80,13 @@ export default function useImageEditor(templateSrc: string): ImageEditorHook {
   const templateImageRef = useRef<HTMLImageElement | null>(null);
   
   const [transform, setTransform] = useState<ImageTransform>({ scale: 1, positionX: 0, positionY: 0, rotation: 0, flipX: false });
-  const [professionText, setProfessionText] = useState<TextTransform>({ 
+  const [professionTexts, setProfessionTexts] = useState<TextTransform[]>([{ 
     text: '', 
     rotation: -18,
     positionX: 0, 
     positionY: 0,
     fontSize: 26
-  });
+  }]);  // 修改为数组，初始包含一个空的职业文本
   const [nameText, setNameText] = useState<TextTransform>({ 
     text: '', 
     rotation: -18,
@@ -94,6 +99,8 @@ export default function useImageEditor(templateSrc: string): ImageEditorHook {
   const [isResizing, setIsResizing] = useState(false);
   const [isProfessionRotating, setIsProfessionRotating] = useState(false);
   const [isProfessionDragging, setIsProfessionDragging] = useState(false);
+  const [isProfessionRotatingIndex, setIsProfessionRotatingIndex] = useState(-1); // 当前旋转的文本索引
+  const [isProfessionDraggingIndex, setIsProfessionDraggingIndex] = useState(-1); // 当前拖动的文本索引
   const [isNameRotating, setIsNameRotating] = useState(false);
   const [isNameDragging, setIsNameDragging] = useState(false);
   const [startPoint, setStartPoint] = useState<StartPoint>({ x: 0, y: 0, scale: 1, rotation: 0 });
@@ -125,9 +132,10 @@ export default function useImageEditor(templateSrc: string): ImageEditorHook {
   };
 
   // Handle profession text dragging
-  const handleProfessionDragStart = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
+  const handleProfessionDragStart = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>, index: number) => {
     e.stopPropagation();
     setIsProfessionDragging(true);
+    setIsProfessionDraggingIndex(index);
     
     let clientX, clientY;
     if ('clientX' in e) {
@@ -146,18 +154,20 @@ export default function useImageEditor(templateSrc: string): ImageEditorHook {
       y: clientY,
       scale: 1,
       rotation: 0,
-      positionX: professionText.positionX,
-      positionY: professionText.positionY
+      positionX: professionTexts[index].positionX,
+      positionY: professionTexts[index].positionY,
+      textIndex: index
     });
   };
 
   // Handle profession text rotation
-  const handleProfessionRotateStart = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
+  const handleProfessionRotateStart = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>, index: number) => {
     e.stopPropagation();
     setIsProfessionRotating(true);
+    setIsProfessionRotatingIndex(index);
     
     // Record initial rotation angle
-    setStartPoint({ ...startPoint, rotation: professionText.rotation });
+    setStartPoint({ ...startPoint, rotation: professionTexts[index].rotation, textIndex: index });
     
     if ('clientX' in e) {
       setStartPoint(prev => ({ ...prev, x: e.clientX, y: e.clientY }));
@@ -267,7 +277,7 @@ export default function useImageEditor(templateSrc: string): ImageEditorHook {
     else if (isProfessionDragging) {
       // Handle profession text dragging
       const canvas = canvasRef.current;
-      if (!canvas) return;
+      if (!canvas || isProfessionDraggingIndex === -1) return;
       
       const rect = canvas.getBoundingClientRect();
       const scale = canvas.width / rect.width;
@@ -277,16 +287,21 @@ export default function useImageEditor(templateSrc: string): ImageEditorHook {
       const deltaY = (clientY - startPoint.y) * scale;
       
       // Update text position, based on initial position plus movement distance
-      setProfessionText(prev => ({
-        ...prev,
-        positionX: (startPoint.positionX || 0) + deltaX,
-        positionY: (startPoint.positionY || 0) + deltaY
-      }));
+      setProfessionTexts(prev => {
+        const newTexts = [...prev];
+        const index = isProfessionDraggingIndex;
+        newTexts[index] = {
+          ...newTexts[index],
+          positionX: (startPoint.positionX || 0) + deltaX,
+          positionY: (startPoint.positionY || 0) + deltaY
+        };
+        return newTexts;
+      });
     }
     else if (isProfessionRotating) {
       // Handle profession rotation
       const canvas = canvasRef.current;
-      if (!canvas) return;
+      if (!canvas || isProfessionRotatingIndex === -1) return;
 
       const rect = canvas.getBoundingClientRect();
       const centerX = rect.left + rect.width / 2;
@@ -297,10 +312,15 @@ export default function useImageEditor(templateSrc: string): ImageEditorHook {
       const currentAngle = Math.atan2(clientY - centerY, clientX - centerX);
       const angleDiff = (currentAngle - startAngle) * (180 / Math.PI);
       
-      setProfessionText(prev => ({
-        ...prev,
-        rotation: (startPoint.rotation + angleDiff) % 360
-      }));
+      setProfessionTexts(prev => {
+        const newTexts = [...prev];
+        const index = isProfessionRotatingIndex;
+        newTexts[index] = {
+          ...newTexts[index],
+          rotation: (startPoint.rotation + angleDiff) % 360
+        };
+        return newTexts;
+      });
     }
     else if (isNameDragging) {
       // Handle name text dragging
@@ -375,32 +395,67 @@ export default function useImageEditor(templateSrc: string): ImageEditorHook {
     setIsResizing(false);
     setIsProfessionRotating(false);
     setIsProfessionDragging(false);
+    setIsProfessionRotatingIndex(-1);
+    setIsProfessionDraggingIndex(-1);
     setIsNameRotating(false);
     setIsNameDragging(false);
   };
 
-  const handleProfessionChange = (text: string) => {
-    setProfessionText(prev => ({ ...prev, text }));
+  const handleProfessionChange = (text: string, index: number) => {
+    setProfessionTexts(prev => {
+      const newTexts = [...prev];
+      newTexts[index] = { ...newTexts[index], text };
+      return newTexts;
+    });
   };
 
   const handleNameChange = (text: string) => {
     setNameText(prev => ({ ...prev, text }));
   };
 
-  // Increase profession text size
-  const handleProfessionFontSizeIncrease = () => {
-    setProfessionText(prev => ({
+  // 添加新的职业文本
+  const addProfessionText = () => {
+    // 创建新的职业文本，位置略有偏移以避免完全重叠
+    const offsetY = professionTexts.length * 20;
+    setProfessionTexts(prev => [
       ...prev,
-      fontSize: Math.min(prev.fontSize + 2, 48)
-    }));
+      {
+        text: '',
+        rotation: -18,
+        positionX: 0,
+        positionY: offsetY,
+        fontSize: 26
+      }
+    ]);
+  };
+
+  // 删除职业文本
+  const removeProfessionText = (index: number) => {
+    setProfessionTexts(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Increase profession text size
+  const handleProfessionFontSizeIncrease = (index: number) => {
+    setProfessionTexts(prev => {
+      const newTexts = [...prev];
+      newTexts[index] = {
+        ...newTexts[index],
+        fontSize: Math.min(newTexts[index].fontSize + 2, 48)
+      };
+      return newTexts;
+    });
   };
 
   // Decrease profession text size
-  const handleProfessionFontSizeDecrease = () => {
-    setProfessionText(prev => ({
-      ...prev,
-      fontSize: Math.max(prev.fontSize - 2, 12)
-    }));
+  const handleProfessionFontSizeDecrease = (index: number) => {
+    setProfessionTexts(prev => {
+      const newTexts = [...prev];
+      newTexts[index] = {
+        ...newTexts[index],
+        fontSize: Math.max(newTexts[index].fontSize - 2, 12)
+      };
+      return newTexts;
+    });
   };
 
   // Increase name text size
@@ -416,6 +471,101 @@ export default function useImageEditor(templateSrc: string): ImageEditorHook {
     setNameText(prev => ({
       ...prev,
       fontSize: Math.max(prev.fontSize - 2, 12)
+    }));
+  };
+  
+  // 获取特定职业文本的控制点
+  const getProfessionControlPoints = (index: number) => {
+    if (!canvasRef.current || index >= professionTexts.length) return {transform: ''};
+    
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    
+    // Calculate position ratio - convert canvas drawing coordinates to DOM coordinates
+    const scaleRatio = rect.width / canvas.width;
+    
+    // Center position (using the same calculation as in drawing)
+    const centerX = (canvas.width * 0.5 * scaleRatio);
+    const centerY = (canvas.height * 0.5 * scaleRatio);
+    
+    // Add profession text offset
+    const offsetX = professionTexts[index].positionX * scaleRatio;
+    const offsetY = professionTexts[index].positionY * scaleRatio;
+    
+    // Return control points related styles and properties
+    return {
+      transform: `translate(calc(${centerX}px + ${offsetX}px - 50%), calc(${centerY}px + ${offsetY}px - 50%)) rotate(${professionTexts[index].rotation}deg)`,
+    };
+  };
+
+  // Calculate control points position (edit mode UI overlay)
+  const getControlPoints = () => {
+    if (!canvasRef.current || !uploadedImage || !imageRef.current) return {width: '', height: '', transform: ''};
+    
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const img = imageRef.current;
+    
+    // Calculate image display size on canvas
+    const targetWidth = canvas.width * 0.3;
+    const targetHeight = canvas.height * 0.6;
+    const scale = Math.min(
+      targetWidth / img.width,
+      targetHeight / img.height
+    );
+    
+    const width = img.width * scale * transform.scale;
+    const height = img.height * scale * transform.scale;
+    
+    // Fix position calculation - ensure it matches with drawImageOnCanvas function
+    // Calculate position ratio - convert canvas drawing coordinates to DOM coordinates
+    const scaleRatio = rect.width / canvas.width;
+    
+    // Center position (using the same calculation as in drawing)
+    const centerX = (canvas.width * 0.5 * scaleRatio);
+    const centerY = (canvas.height * 0.5 * scaleRatio);
+    
+    // Adjusted transformation
+    const transformX = transform.positionX * scaleRatio;
+    const transformY = transform.positionY * scaleRatio;
+    
+    // Return control points related styles and properties
+    return {
+      width: `${width * scaleRatio}px`,
+      height: `${height * scaleRatio}px`,
+      transform: `translate(calc(${centerX}px + ${transformX}px - 50%), calc(${centerY}px + ${transformY}px - 50%)) rotate(${transform.rotation}deg)`,
+    };
+  };
+
+  // Calculate name text control points position
+  const getNameControlPoints = () => {
+    if (!canvasRef.current) return {transform: ''};
+    
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    
+    // Calculate position ratio - convert canvas drawing coordinates to DOM coordinates
+    const scaleRatio = rect.width / canvas.width;
+    
+    // Name position (using the same calculation as in drawing)
+    const centerX = (canvas.width * 0.6 * scaleRatio);
+    const centerY = (canvas.height * 0.6 * scaleRatio);
+    
+    // Add name text offset
+    const offsetX = nameText.positionX * scaleRatio;
+    const offsetY = nameText.positionY * scaleRatio;
+    
+    // Return control points related styles and properties
+    return {
+      transform: `translate(calc(${centerX}px + ${offsetX}px - 50%), calc(${centerY}px + ${offsetY}px - 50%)) rotate(${nameText.rotation}deg)`,
+    };
+  };
+
+  // Add flip handler function
+  const handleFlip = () => {
+    setTransform(prev => ({
+      ...prev,
+      flipX: !prev.flipX
     }));
   };
 
@@ -470,37 +620,39 @@ export default function useImageEditor(templateSrc: string): ImageEditorHook {
       ctx.drawImage(templateImageRef.current, 0, 0, canvas.width, canvas.height);
       ctx.restore();
       
-      // Draw profession text
-      if (professionText.text) {
-        ctx.save();
-        
-        // Set font and style
-        ctx.font = `bold ${professionText.fontSize}px 楷体, KaiTi, 宋体, SimSun, sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
+      // 绘制所有职业文本
+      professionTexts.forEach(professionText => {
+        if (professionText.text) {
+          ctx.save();
+          
+          // Set font and style
+          ctx.font = `bold ${professionText.fontSize}px 楷体, KaiTi, 宋体, SimSun, sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
 
-        // Calculate text position - default in center plus user drag offset
-        const x = canvas.width * 0.5 + professionText.positionX;
-        const y = canvas.height * 0.5 + professionText.positionY;
-        
-        // Translate to text center and rotate
-        ctx.translate(x, y);
-        ctx.rotate(professionText.rotation * Math.PI / 180);
-        
-        // Draw text shadow and stroke, reduced stroke width
-        ctx.lineWidth = 4; // Reduced stroke width
-        ctx.strokeStyle = 'white'; // White stroke
-        ctx.shadowColor = 'white';
-        ctx.shadowBlur = 2;
-        ctx.strokeText(professionText.text, 0, 0);
-        
-        // Draw text body
-        ctx.fillStyle = 'black';
-        ctx.shadowBlur = 0;
-        ctx.fillText(professionText.text, 0, 0);
-        
-        ctx.restore();
-      }
+          // Calculate text position - default in center plus user drag offset
+          const x = canvas.width * 0.5 + professionText.positionX;
+          const y = canvas.height * 0.5 + professionText.positionY;
+          
+          // Translate to text center and rotate
+          ctx.translate(x, y);
+          ctx.rotate(professionText.rotation * Math.PI / 180);
+          
+          // Draw text shadow and stroke, reduced stroke width
+          ctx.lineWidth = 4; // Reduced stroke width
+          ctx.strokeStyle = 'white'; // White stroke
+          ctx.shadowColor = 'white';
+          ctx.shadowBlur = 2;
+          ctx.strokeText(professionText.text, 0, 0);
+          
+          // Draw text body
+          ctx.fillStyle = 'black';
+          ctx.shadowBlur = 0;
+          ctx.fillText(professionText.text, 0, 0);
+          
+          ctx.restore();
+        }
+      });
       
       // Draw name text
       if (nameText.text) {
@@ -610,37 +762,39 @@ export default function useImageEditor(templateSrc: string): ImageEditorHook {
     // Draw template (fully opaque)
     exportCtx.drawImage(templateImageRef.current as HTMLImageElement, 0, 0, exportCanvas.width, exportCanvas.height);
     
-    // Draw profession text
-    if (professionText.text) {
-      exportCtx.save();
-      
-      // Set font and style
-      exportCtx.font = `bold ${professionText.fontSize}px 楷体, KaiTi, 宋体, SimSun, sans-serif`;
-      exportCtx.textAlign = 'center';
-      exportCtx.textBaseline = 'middle';
-      
-      // Calculate text position
-      const x = exportCanvas.width * 0.5 + professionText.positionX;
-      const y = exportCanvas.height * 0.5 + professionText.positionY;
-      
-      // Translate to text center and rotate
-      exportCtx.translate(x, y);
-      exportCtx.rotate(professionText.rotation * Math.PI / 180);
-      
-      // Draw text shadow and stroke, reduced stroke width
-      exportCtx.lineWidth = 4; // Reduced stroke width
-      exportCtx.strokeStyle = 'white'; // White stroke
-      exportCtx.shadowColor = 'white';
-      exportCtx.shadowBlur = 2;
-      exportCtx.strokeText(professionText.text, 0, 0);
-      
-      // Draw text body
-      exportCtx.fillStyle = 'black';
-      exportCtx.shadowBlur = 0;
-      exportCtx.fillText(professionText.text, 0, 0);
-      
-      exportCtx.restore();
-    }
+    // 绘制所有职业文本
+    professionTexts.forEach(professionText => {
+      if (professionText.text) {
+        exportCtx.save();
+        
+        // Set font and style
+        exportCtx.font = `bold ${professionText.fontSize}px 楷体, KaiTi, 宋体, SimSun, sans-serif`;
+        exportCtx.textAlign = 'center';
+        exportCtx.textBaseline = 'middle';
+        
+        // Calculate text position
+        const x = exportCanvas.width * 0.5 + professionText.positionX;
+        const y = exportCanvas.height * 0.5 + professionText.positionY;
+        
+        // Translate to text center and rotate
+        exportCtx.translate(x, y);
+        exportCtx.rotate(professionText.rotation * Math.PI / 180);
+        
+        // Draw text shadow and stroke, reduced stroke width
+        exportCtx.lineWidth = 4; // Reduced stroke width
+        exportCtx.strokeStyle = 'white'; // White stroke
+        exportCtx.shadowColor = 'white';
+        exportCtx.shadowBlur = 2;
+        exportCtx.strokeText(professionText.text, 0, 0);
+        
+        // Draw text body
+        exportCtx.fillStyle = 'black';
+        exportCtx.shadowBlur = 0;
+        exportCtx.fillText(professionText.text, 0, 0);
+        
+        exportCtx.restore();
+      }
+    });
     
     // Draw name text
     if (nameText.text) {
@@ -687,101 +841,6 @@ export default function useImageEditor(templateSrc: string): ImageEditorHook {
     }
   };
 
-  // Calculate control points position (edit mode UI overlay)
-  const getControlPoints = () => {
-    if (!canvasRef.current || !uploadedImage || !imageRef.current) return {width: '', height: '', transform: ''};
-    
-    const canvas = canvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-    const img = imageRef.current;
-    
-    // Calculate image display size on canvas
-    const targetWidth = canvas.width * 0.3;
-    const targetHeight = canvas.height * 0.6;
-    const scale = Math.min(
-      targetWidth / img.width,
-      targetHeight / img.height
-    );
-    
-    const width = img.width * scale * transform.scale;
-    const height = img.height * scale * transform.scale;
-    
-    // Fix position calculation - ensure it matches with drawImageOnCanvas function
-    // Calculate position ratio - convert canvas drawing coordinates to DOM coordinates
-    const scaleRatio = rect.width / canvas.width;
-    
-    // Center position (using the same calculation as in drawing)
-    const centerX = (canvas.width * 0.5 * scaleRatio);
-    const centerY = (canvas.height * 0.5 * scaleRatio);
-    
-    // Adjusted transformation
-    const transformX = transform.positionX * scaleRatio;
-    const transformY = transform.positionY * scaleRatio;
-    
-    // Return control points related styles and properties
-    return {
-      width: `${width * scaleRatio}px`,
-      height: `${height * scaleRatio}px`,
-      transform: `translate(calc(${centerX}px + ${transformX}px - 50%), calc(${centerY}px + ${transformY}px - 50%)) rotate(${transform.rotation}deg)`,
-    };
-  };
-
-  // Calculate profession text control points position
-  const getProfessionControlPoints = () => {
-    if (!canvasRef.current) return {transform: ''};
-    
-    const canvas = canvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-    
-    // Calculate position ratio - convert canvas drawing coordinates to DOM coordinates
-    const scaleRatio = rect.width / canvas.width;
-    
-    // Center position (using the same calculation as in drawing)
-    const centerX = (canvas.width * 0.5 * scaleRatio);
-    const centerY = (canvas.height * 0.5 * scaleRatio);
-    
-    // Add profession text offset
-    const offsetX = professionText.positionX * scaleRatio;
-    const offsetY = professionText.positionY * scaleRatio;
-    
-    // Return control points related styles and properties
-    return {
-      transform: `translate(calc(${centerX}px + ${offsetX}px - 50%), calc(${centerY}px + ${offsetY}px - 50%)) rotate(${professionText.rotation}deg)`,
-    };
-  };
-
-  // Calculate name text control points position
-  const getNameControlPoints = () => {
-    if (!canvasRef.current) return {transform: ''};
-    
-    const canvas = canvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-    
-    // Calculate position ratio - convert canvas drawing coordinates to DOM coordinates
-    const scaleRatio = rect.width / canvas.width;
-    
-    // Name position (using the same calculation as in drawing)
-    const centerX = (canvas.width * 0.6 * scaleRatio);
-    const centerY = (canvas.height * 0.6 * scaleRatio);
-    
-    // Add name text offset
-    const offsetX = nameText.positionX * scaleRatio;
-    const offsetY = nameText.positionY * scaleRatio;
-    
-    // Return control points related styles and properties
-    return {
-      transform: `translate(calc(${centerX}px + ${offsetX}px - 50%), calc(${centerY}px + ${offsetY}px - 50%)) rotate(${nameText.rotation}deg)`,
-    };
-  };
-
-  // Add flip handler function
-  const handleFlip = () => {
-    setTransform(prev => ({
-      ...prev,
-      flipX: !prev.flipX
-    }));
-  };
-
   useEffect(() => {
     // Create and load template image
     const templateImage = new Image();
@@ -805,7 +864,7 @@ export default function useImageEditor(templateSrc: string): ImageEditorHook {
 
   useEffect(() => {
     drawImageOnCanvas();
-  }, [uploadedImage, transform, professionText, nameText]);
+  }, [uploadedImage, transform, professionTexts, nameText]);
 
   return {
     imageRef,
@@ -813,13 +872,15 @@ export default function useImageEditor(templateSrc: string): ImageEditorHook {
     containerRef,
     uploadedImage,
     transform,
-    professionText,
+    professionTexts,  // 改为数组
     nameText,
     isDragging,
     isRotating,
     isResizing,
     isProfessionRotating,
     isProfessionDragging,
+    isProfessionRotatingIndex,  // 新增
+    isProfessionDraggingIndex,  // 新增
     isNameRotating,
     isNameDragging,
     startPoint,
@@ -839,6 +900,8 @@ export default function useImageEditor(templateSrc: string): ImageEditorHook {
     handleProfessionFontSizeDecrease,
     handleNameFontSizeIncrease,
     handleNameFontSizeDecrease,
+    addProfessionText,  // 新增
+    removeProfessionText,  // 新增
     exportImage,
     getControlPoints,
     getProfessionControlPoints,
