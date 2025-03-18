@@ -714,130 +714,134 @@ export default function useImageEditor(templateSrc: string): ImageEditorHook {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Temporarily create a canvas for export
+    // 创建更高分辨率的导出canvas (增加2-4倍分辨率)
+    const scaleFactor = 3; // 分辨率提升因子
     const exportCanvas = document.createElement('canvas');
-    exportCanvas.width = canvas.width;
-    exportCanvas.height = canvas.height;
+    exportCanvas.width = canvas.width * scaleFactor;
+    exportCanvas.height = canvas.height * scaleFactor;
     const exportCtx = exportCanvas.getContext('2d');
     
     if (!exportCtx) return;
     
-    // Enable font smoothing
+    // 启用字体平滑
     exportCtx.imageSmoothingEnabled = true;
     exportCtx.imageSmoothingQuality = 'high';
 
-    // Clear canvas
-    exportCtx.clearRect(0, 0, exportCanvas.width, exportCanvas.height);
+    // 应用缩放以匹配高分辨率
+    exportCtx.scale(scaleFactor, scaleFactor);
 
-    // Draw user image (if any)
+    // 清空画布
+    exportCtx.clearRect(0, 0, exportCanvas.width / scaleFactor, exportCanvas.height / scaleFactor);
+
+    // 绘制用户图像(如果有)
     if (uploadedImage && imageRef.current) {
-      const img = imageRef.current;
-      const targetWidth = canvas.width * 0.3;
-      const targetHeight = canvas.height * 0.6;
+        const img = imageRef.current;
+        const targetWidth = canvas.width * 0.3;
+        const targetHeight = canvas.height * 0.6;
 
-      // Calculate scale ratio to maintain aspect ratio
-      const scale = Math.min(
-        targetWidth / img.width,
-        targetHeight / img.height
-      );
-      
-      const width = img.width * scale * transform.scale;
-      const height = img.height * scale * transform.scale;
+        // 计算保持纵横比的缩放比例
+        const scale = Math.min(
+            targetWidth / img.width,
+            targetHeight / img.height
+        );
+        
+        const width = img.width * scale * transform.scale;
+        const height = img.height * scale * transform.scale;
 
-      // Calculate center position
-      const centerX = canvas.width * 0.5;
-      const centerY = canvas.height * 0.5;
+        // 计算中心位置
+        const centerX = canvas.width * 0.5;
+        const centerY = canvas.height * 0.5;
 
-      // Apply transformation
-      exportCtx.save();
-      exportCtx.translate(centerX + transform.positionX, centerY + transform.positionY);
-      exportCtx.rotate(transform.rotation * Math.PI / 180);
-      if (transform.flipX) {
-        exportCtx.scale(-1, 1);
-      }
-      exportCtx.drawImage(img, -width/2, -height/2, width, height);
-      exportCtx.restore();
+        // 应用变换
+        exportCtx.save();
+        exportCtx.translate(centerX + transform.positionX, centerY + transform.positionY);
+        exportCtx.rotate(transform.rotation * Math.PI / 180);
+        if (transform.flipX) {
+            exportCtx.scale(-1, 1);
+        }
+        exportCtx.drawImage(img, -width/2, -height/2, width, height);
+        exportCtx.restore();
     }
 
-    // Draw template (fully opaque)
-    exportCtx.drawImage(templateImageRef.current as HTMLImageElement, 0, 0, exportCanvas.width, exportCanvas.height);
+    // 绘制模板(完全不透明)
+    exportCtx.drawImage(templateImageRef.current as HTMLImageElement, 0, 0, canvas.width, canvas.height);
     
     // 绘制所有职业文本
     professionTexts.forEach(professionText => {
-      if (professionText.text) {
+        if (professionText.text) {
+            exportCtx.save();
+            
+            // 设置字体和样式
+            exportCtx.font = `bold ${professionText.fontSize}px 楷体, KaiTi, 宋体, SimSun, sans-serif`;
+            exportCtx.textAlign = 'center';
+            exportCtx.textBaseline = 'middle';
+            
+            // 计算文本位置
+            const x = canvas.width * 0.5 + professionText.positionX;
+            const y = canvas.height * 0.5 + professionText.positionY;
+            
+            // 平移到文本中心并旋转
+            exportCtx.translate(x, y);
+            exportCtx.rotate(professionText.rotation * Math.PI / 180);
+            
+            // 绘制文本阴影和描边，优化参数
+            exportCtx.lineWidth = 4;
+            exportCtx.strokeStyle = 'white';
+            exportCtx.shadowColor = 'white';
+            exportCtx.shadowBlur = 3;
+            exportCtx.strokeText(professionText.text, 0, 0);
+            
+            // 绘制文本主体
+            exportCtx.fillStyle = 'black';
+            exportCtx.shadowBlur = 0;
+            exportCtx.fillText(professionText.text, 0, 0);
+            
+            exportCtx.restore();
+        }
+    });
+    
+    // 绘制姓名文本
+    if (nameText.text) {
         exportCtx.save();
         
-        // Set font and style
-        exportCtx.font = `bold ${professionText.fontSize}px 楷体, KaiTi, 宋体, SimSun, sans-serif`;
+        // 设置字体和样式
+        exportCtx.font = `bold ${nameText.fontSize}px 楷体, KaiTi, 宋体, SimSun, sans-serif`;
         exportCtx.textAlign = 'center';
         exportCtx.textBaseline = 'middle';
         
-        // Calculate text position
-        const x = exportCanvas.width * 0.5 + professionText.positionX;
-        const y = exportCanvas.height * 0.5 + professionText.positionY;
+        // 计算文本位置
+        const x = canvas.width * 0.6 + nameText.positionX;
+        const y = canvas.height * 0.6 + nameText.positionY;
         
-        // Translate to text center and rotate
+        // 平移到文本中心并旋转
         exportCtx.translate(x, y);
-        exportCtx.rotate(professionText.rotation * Math.PI / 180);
+        exportCtx.rotate(nameText.rotation * Math.PI / 180);
         
-        // Draw text shadow and stroke, reduced stroke width
-        exportCtx.lineWidth = 4; // Reduced stroke width
-        exportCtx.strokeStyle = 'white'; // White stroke
+        // 绘制文本阴影和描边，优化参数
+        exportCtx.lineWidth = 5;
+        exportCtx.strokeStyle = 'white';
         exportCtx.shadowColor = 'white';
-        exportCtx.shadowBlur = 2;
-        exportCtx.strokeText(professionText.text, 0, 0);
+        exportCtx.shadowBlur = 4;
+        exportCtx.shadowOffsetX = 0;
+        exportCtx.shadowOffsetY = 0;
+        exportCtx.strokeText(nameText.text, 0, 0);
         
-        // Draw text body
+        // 绘制文本主体
         exportCtx.fillStyle = 'black';
         exportCtx.shadowBlur = 0;
-        exportCtx.fillText(professionText.text, 0, 0);
+        exportCtx.fillText(nameText.text, 0, 0);
         
         exportCtx.restore();
-      }
-    });
-    
-    // Draw name text
-    if (nameText.text) {
-      exportCtx.save();
-      
-      // Set font and style
-      exportCtx.font = `bold ${nameText.fontSize}px 楷体, KaiTi, 宋体, SimSun, sans-serif`;
-      exportCtx.textAlign = 'center';
-      exportCtx.textBaseline = 'middle';
-      
-      // Calculate text position
-      const x = exportCanvas.width * 0.6 + nameText.positionX;
-      const y = exportCanvas.height * 0.6 + nameText.positionY;
-      
-      // Translate to text center and rotate
-      exportCtx.translate(x, y);
-      exportCtx.rotate(nameText.rotation * Math.PI / 180);
-      
-      // Draw text shadow and stroke, reduced stroke width
-      exportCtx.lineWidth = 5; // Reduced stroke width
-      exportCtx.strokeStyle = 'white'; // White stroke
-      exportCtx.shadowColor = 'white';
-      exportCtx.shadowBlur = 3;
-      exportCtx.shadowOffsetX = 0;
-      exportCtx.shadowOffsetY = 0;
-      exportCtx.strokeText(nameText.text, 0, 0);
-      
-      // Draw text body
-      exportCtx.fillStyle = 'black';
-      exportCtx.shadowBlur = 0;
-      exportCtx.fillText(nameText.text, 0, 0);
-      
-      exportCtx.restore();
     }
 
     try {
-      const dataUrl = exportCanvas.toDataURL('image/png');
-      const link = document.createElement('a');
-      link.download = 'bnb-card.png';
-      link.href = dataUrl;
-      link.click();
+        const dataUrl = exportCanvas.toDataURL('image/png', 1.0); // 使用最高质量
+        const link = document.createElement('a');
+        link.download = 'bnb-card.png';
+        link.href = dataUrl;
+        link.click();
     } catch (error) {
-      console.error('Failed to export image:', error);
+        console.error('导出图片失败:', error);
     }
   };
 
